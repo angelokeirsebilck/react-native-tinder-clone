@@ -13,7 +13,7 @@ const Header = ({ title, callEnabled }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={tw('p-2')}>
           <Ionicons name='chevron-back-outline' size={34} color='#FF5864' />
         </TouchableOpacity>
-        <Text style={tw('text-2xl font-bold pl-2')}>{title}</Text>
+        <Text style={tw('text-xl font-bold pl-2')}>{title}</Text>
       </View>
       {callEnabled && (
         <TouchableOpacity style={tw('rounded-full mr-4 p-3 bg-red-200')}>
