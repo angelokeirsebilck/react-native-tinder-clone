@@ -19,7 +19,19 @@ import Swiper from 'react-native-deck-swiper';
 
 import data from '../dummyData';
 
-import { doc, onSnapshot, collection } from '@firebase/firestore';
+import generateId from '../lib/generateId';
+
+import {
+  doc,
+  onSnapshot,
+  collection,
+  setDoc,
+  getDoc,
+  serverTimestamp,
+  getDocs,
+  query,
+  where,
+} from '@firebase/firestore';
 import { db } from '../firebase';
 
 const HomeScreen = () => {
@@ -41,29 +53,99 @@ const HomeScreen = () => {
   useEffect(() => {
     let unsub;
 
-    const featchCards = (async) => {
-      unsub = onSnapshot(collection(db, 'users'), (snapshot) => {
-        setProfiles(
-          snapshot.docs
-            .filter((doc) => doc.id !== user.uid)
-            .map((doc) => {
-              return {
-                id: doc.id,
-                ...doc.data(),
-              };
-            })
-        );
-      });
+    const featchCards = async () => {
+      const passes = await getDocs(
+        collection(db, 'users', user.uid, 'passes')
+      ).then((snapshot) => snapshot.docs.map((doc) => doc.id));
+
+      const passedUserIds = passes.length > 0 ? passes : ['test'];
+
+      const swipes = await getDocs(
+        collection(db, 'users', user.uid, 'swipes')
+      ).then((snapshot) => snapshot.docs.map((doc) => doc.id));
+
+      const swipedUserIds = swipes.length > 0 ? swipes : ['test'];
+
+      unsub = onSnapshot(
+        query(
+          collection(db, 'users'),
+          where('id', 'not-in', [...passedUserIds, ...swipedUserIds])
+        ),
+        (snapshot) => {
+          setProfiles(
+            snapshot.docs
+              .filter((doc) => doc.id !== user.uid)
+              .map((doc) => {
+                return {
+                  id: doc.id,
+                  ...doc.data(),
+                };
+              })
+          );
+        }
+      );
     };
 
     featchCards();
 
     return unsub;
-  }, []);
+  }, [db]);
 
-  const swipeLeft = async () => {};
+  const swipeLeft = async (cardIndex) => {
+    if (!profiles[cardIndex]) return;
 
-  const swipeRight = async () => {};
+    const userSwiped = profiles[cardIndex];
+    console.log(`You swiped left on ${userSwiped.displayName}`);
+
+    setDoc(doc(db, 'users', user.uid, 'passes', userSwiped.id), userSwiped);
+  };
+
+  const swipeRight = async (cardIndex) => {
+    if (!profiles[cardIndex]) return;
+
+    const userSwiped = profiles[cardIndex];
+
+    const loggedInProfile = await (
+      await getDoc(doc(db, 'users', user.uid))
+    ).data();
+
+    console.log(`You swiped right on ${userSwiped.displayName}`);
+
+    // check if user swiped on you
+    await getDoc(doc(db, 'users', userSwiped.id, 'swipes', user.uid)).then(
+      (documentSnapshot) => {
+        if (documentSnapshot.exists()) {
+          // matched
+          setDoc(
+            doc(db, 'users', user.uid, 'swipes', userSwiped.id),
+            userSwiped
+          );
+
+          // Create match
+          setDoc(doc(db, 'matches', generateId(userSwiped.id, user.uid)), {
+            users: {
+              [user.uid]: loggedInProfile,
+              [userSwiped.id]: userSwiped,
+            },
+            usersMatched: [user.uid, userSwiped.id],
+            timestamp: serverTimestamp(),
+          });
+
+          console.log('matched!!');
+
+          navigation.navigate('Match', {
+            loggedInProfile,
+            userSwiped,
+          });
+        } else {
+          setDoc(
+            doc(db, 'users', user.uid, 'swipes', userSwiped.id),
+            userSwiped
+          );
+        }
+      }
+    );
+  };
 
   return (
     <SafeAreaView style={tw('flex-1 mt-4')}>
@@ -90,11 +172,13 @@ const HomeScreen = () => {
           stackSize={5}
           cardIndex={0}
           animateCardOpacity
-          onSwipedLeft={() => {
+          onSwipedLeft={(cardIndex) => {
+            swipeLeft(cardIndex);
             console.log('swipe nope');
           }}
-          onSwipedRight={() => {
-            console.log('swipe match');
+          onSwipedRight={(cardIndex) => {
+            swipeRight(cardIndex);
+            console.log('swipe right');
           }}
           overlayLabels={{
             left: {

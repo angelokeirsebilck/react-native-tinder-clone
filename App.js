@@ -1,6 +1,6 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { LogBox } from 'react-native';
-LogBox.ignoreAllLogs();
+LogBox.ignoreLogs(['Setting a timer', 'AsyncStorage']);
 import { AuthProvider } from './hooks/useAuth';
 import StackNavigator from './StackNavigator';
 
